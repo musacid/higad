@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>لعبة ترتيب الحروف الشاملة</title>
+    <!-- خطوط عربية -->
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;900&family=Noto+Naskh+Arabic:wght@700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background-color: #f0fdf4; /* لون خلفية مريح */
+            touch-action: manipulation; /* تحسين اللمس للجوال */
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* خط النسخ التعليمي المخصص للحروف (نفس خط المصحف والكتب المدرسية) */
+        .arabic-letter {
+            font-family: 'Noto Naskh Arabic', serif;
+        }
+
+        /* الاهتزاز عند الخطأ */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+        .shake-animation {
+            animation: shake 0.4s both;
+            background-color: #ef4444 !important; /* أحمر للخطأ */
+            color: white !important;
+            border-color: #dc2626 !important;
+            box-shadow: 0 4px 0px #991b1b !important;
+        }
+
+        /* حركة الظهور عند النجاح */
+        @keyframes popIn {
+            0% { transform: scale(0); opacity: 0; }
+            80% { transform: scale(1.2); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .pop-in {
+            animation: popIn 0.3s ease-out forwards;
+        }
+
+        /* تصميم الأزرار الأساسي */
+        .btn-base {
+            transition: transform 0.1s, opacity 0.2s, box-shadow 0.1s;
+        }
+        .btn-base:active {
+            transform: translateY(4px);
+            box-shadow: 0 0px 0px transparent !important;
+        }
+
+        /* ألوان المجموعات لتسهيل البحث */
+        .color-group-1 {
+            background-color: #e0f2fe; color: #1e40af; border: 2px solid #93c5fd; box-shadow: 0 4px 0px #93c5fd;
+        }
+        .color-group-2 {
+            background-color: #dcfce7; color: #166534; border: 2px solid #86efac; box-shadow: 0 4px 0px #86efac;
+        }
+        .color-group-3 {
+            background-color: #f3e8ff; color: #6b21a8; border: 2px solid #d8b4fe; box-shadow: 0 4px 0px #d8b4fe;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-2 sm:p-4">
+
+    <!-- شاشة الاحتفال عند الانتهاء -->
+    <div id="celebration" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm px-4">
+        <div class="bg-white rounded-3xl p-8 text-center shadow-2xl w-full max-w-sm pop-in">
+            <div class="text-7xl mb-4">🏆</div>
+            <h1 class="text-3xl font-black text-green-600 mb-2">أحسنتِ يا بطلة!</h1>
+            <p class="text-lg text-gray-600 mb-4">أكملتِ المطلوب بنجاح.</p>
+            <div class="bg-red-50 text-red-600 font-bold p-3 rounded-lg mb-6 border border-red-200">
+                عدد الأخطاء: <span id="final-mistakes" class="text-2xl">0</span>
+            </div>
+            <button onclick="restartGame()" class="w-full bg-blue-500 text-white font-bold text-xl py-4 rounded-2xl shadow-[0_4px_0_#2563eb] active:translate-y-1 active:shadow-none">
+                لعب مرة أخرى 🔄
+            </button>
+        </div>
+    </div>
+
+    <!-- شريط العنوان والقائمة المنسدلة (فقرتين فقط) -->
+    <div class="w-full max-w-md flex flex-col sm:flex-row justify-between items-center mb-3 mt-1 px-1 gap-2">
+        <h1 class="text-xl font-black text-indigo-800 drop-shadow-sm">لعبة الحروف</h1>
+        <select id="game-mode" onchange="changeGameMode()" dir="rtl" class="bg-white border-2 border-indigo-300 text-indigo-700 font-bold py-1.5 px-3 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm outline-none cursor-pointer w-full sm:w-auto">
+            <option value="alphabet">لعبة حروف الهجاء (28 حرف)</option>
+            <option value="all_forms">لعبة مواضع الحروف الشاملة (84 شكل)</option>
+        </select>
+    </div>
+
+    <!-- لوحة المعلم (عداد الأخطاء والتقدم) -->
+    <div class="w-full max-w-md flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm border border-gray-200 mb-3">
+        <div class="flex items-center gap-2">
+            <div class="bg-red-100 text-red-600 px-3 py-1.5 rounded-xl text-sm font-bold flex items-center gap-1">
+                <span>❌ أخطاء:</span>
+                <span id="mistake-counter" class="text-xl">0</span>
+            </div>
+        </div>
+        <div class="text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl">
+            التقدم: <span id="progress-text">0/0</span>
+        </div>
+    </div>
+
+    <!-- الجزء العلوي: خانات الحروف الفارغة (الصناديق) -->
+    <div class="w-full max-w-md bg-white p-3 rounded-2xl shadow-sm border border-gray-200 mb-4">
+        <h2 id="target-title" class="text-xs sm:text-sm font-bold text-gray-500 mb-3 text-center">الترتيب الصحيح (من اليمين لليسار)</h2>
+        <!-- أضفنا max-h و overflow-y ليتمكن من التمرير الآلي إذا كثرت الخانات -->
+        <div id="target-grid" class="flex flex-wrap justify-center gap-1.5 sm:gap-2 max-h-[25vh] overflow-y-auto p-1 relative" dir="rtl">
+            <!-- الخانات ستتولد هنا -->
+        </div>
+    </div>
+
+    <!-- التوجيه -->
+    <div class="w-full max-w-md bg-indigo-500 text-white text-center py-2 rounded-xl mb-3 shadow-sm border border-indigo-600">
+        <h2 class="text-lg font-bold">ابحثي عن الحرف المطلوب واضغطي عليه</h2>
+    </div>
+
+    <!-- الجزء السفلي: شبكة الحروف للضغط (عشوائية ولون موحد) -->
+    <div id="letters-grid" class="w-full max-w-md flex flex-wrap justify-center gap-2 sm:gap-3 pb-8 pt-2" dir="ltr">
+        <!-- الأزرار ستتولد هنا -->
+    </div>
+
+    <script>
+        const correctAlphabet = [
+            'أ', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'د', 'ذ', 'ر', 'ز', 'س', 'ش', 'ص', 
+            'ض', 'ط', 'ظ', 'ع', 'غ', 'ف', 'ق', 'ك', 'ل', 'م', 'ن', 'هـ', 'و', 'ي'
+        ];
+
+        const letterFormsData = {
+            'أ': ['أ', 'ـأ', 'ـأ'],
+            'ب': ['بـ', 'ـبـ', 'ـب'],
+            'ت': ['تـ', 'ـتـ', 'ـت'],
+            'ث': ['ثـ', 'ـثـ', 'ـث'],
+            'ج': ['جـ', 'ـجـ', 'ـج'],
+            'ح': ['حـ', 'ـحـ', 'ـح'],
+            'خ': ['خـ', 'ـخـ', 'ـخ'],
+            'د': ['د', 'ـد', 'ـد'],
+            'ذ': ['ذ', 'ـذ', 'ـذ'],
+            'ر': ['ر', 'ـر', 'ـر'],
+            'ز': ['ز', 'ـز', 'ـز'],
+            'س': ['سـ', 'ـسـ', 'ـس'],
+            'ش': ['شـ', 'ـشـ', 'ـش'],
+            'ص': ['صـ', 'ـصـ', 'ـص'],
+            'ض': ['ضـ', 'ـضـ', 'ـض'],
+            'ط': ['طـ', 'ـطـ', 'ـط'],
+            'ظ': ['ظـ', 'ـظـ', 'ـظ'],
+            'ع': ['عـ', 'ـعـ', 'ـع'],
+            'غ': ['غـ', 'ـغـ', 'ـغ'],
+            'ف': ['فـ', 'ـفـ', 'ـف'],
+            'ق': ['قـ', 'ـقـ', 'ـق'],
+            'ك': ['كـ', 'ـكـ', 'ـك'],
+            'ل': ['لـ', 'ـلـ', 'ـل'],
+            'م': ['مـ', 'ـمـ', 'ـم'],
+            'ن': ['نـ', 'ـنـ', 'ـن'],
+            'هـ': ['هـ', 'ـهـ', 'ـه'],
+            'و': ['و', 'ـو', 'ـو'],
+            'ي': ['يـ', 'ـيـ', 'ـي']
+        };
+
+        // تقسيم الحروف إلى 3 مجموعات لتسهيل البحث
+        const group1Letters = ['أ', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'د', 'ذ', 'ر', 'ز'];
+        const group2Letters = ['س', 'ش', 'ص', 'ض', 'ط', 'ظ', 'ع', 'غ', 'ف', 'ق'];
+        const group3Letters = ['ك', 'ل', 'م', 'ن', 'هـ', 'و', 'ي'];
+
+        // دالة لمعرفة لون الحرف بناءً على مجموعته
+        function getLetterColorClass(letterForm) {
+            if (group1Letters.includes(letterForm)) return 'color-group-1';
+            if (group2Letters.includes(letterForm)) return 'color-group-2';
+            if (group3Letters.includes(letterForm)) return 'color-group-3';
+            
+            for (let base of group1Letters) if (letterFormsData[base] && letterFormsData[base].includes(letterForm)) return 'color-group-1';
+            for (let base of group2Letters) if (letterFormsData[base] && letterFormsData[base].includes(letterForm)) return 'color-group-2';
+            for (let base of group3Letters) if (letterFormsData[base] && letterFormsData[base].includes(letterForm)) return 'color-group-3';
+            
+            return 'color-group-1';
+        }
+
+        // إنشاء السلسلة الشاملة (84 شكل) من القاموس
+        let allFormsSequence = [];
+        correctAlphabet.forEach(letter => {
+            allFormsSequence.push(...letterFormsData[letter]);
+        });
+
+        let currentSequence = []; 
+        let currentIndex = 0;
+        let mistakes = 0;
+
+        // نظام الصوت
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            if (type === 'correct') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+            } else if (type === 'wrong') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+            } else if (type === 'win') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.2);
+                osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.4);
+                gainNode.gain.setValueAtTime(0.4, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.6);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.6);
+            }
+        }
+
+        function shuffleArray(array) {
+            let curId = array.length;
+            while (0 !== curId) {
+                let randId = Math.floor(Math.random() * curId);
+                curId -= 1;
+                let tmp = array[curId];
+                array[curId] = array[randId];
+                array[randId] = tmp;
+            }
+            return array;
+        }
+
+        window.onload = () => {
+            initGame();
+        };
+
+        function changeGameMode() {
+            mistakes = 0;
+            document.getElementById('mistake-counter').innerText = '0';
+            document.getElementById('celebration').classList.add('hidden');
+            initGame();
+        }
+
+        function restartGame() {
+            mistakes = 0;
+            document.getElementById('mistake-counter').innerText = '0';
+            document.getElementById('celebration').classList.add('hidden');
+            initGame();
+        }
+
+        function initGame() {
+            const mode = document.getElementById('game-mode').value;
+            const targetTitle = document.getElementById('target-title');
+            
+            // تحديد اللعبة المطلوبة
+            if (mode === 'alphabet') {
+                currentSequence = [...correctAlphabet];
+                targetTitle.innerText = "الترتيب الصحيح للأبجدية (من اليمين لليسار)";
+            } else {
+                currentSequence = [...allFormsSequence];
+                targetTitle.innerText = "رتب جميع مواضع الحروف (أول، وسط، آخر الكلمة)";
+            }
+
+            currentIndex = 0;
+            document.getElementById('progress-text').innerText = `0/${currentSequence.length}`;
+
+            const targetGrid = document.getElementById('target-grid');
+            const lettersGrid = document.getElementById('letters-grid');
+            
+            targetGrid.innerHTML = '';
+            lettersGrid.innerHTML = '';
+
+            const isAlphabetMode = (mode === 'alphabet');
+            
+            // إعدادات الحجم
+            const slotSizeClass = isAlphabetMode ? 'w-8 h-8 sm:w-10 sm:h-10 text-lg' : 'w-7 h-7 sm:w-8 sm:h-8 text-sm sm:text-base';
+            const btnSizeClass = isAlphabetMode ? 'w-14 h-14 sm:w-16 sm:h-16 text-2xl' : 'w-11 h-11 sm:w-14 sm:h-14 text-xl sm:text-2xl';
+
+            // 1. توليد الخانات العلوية الفارغة
+            if (isAlphabetMode) {
+                currentSequence.forEach((letter, index) => {
+                    const slot = document.createElement('div');
+                    slot.className = `arabic-letter ${slotSizeClass} flex items-center justify-center font-bold rounded border-2 border-dashed border-gray-300 bg-gray-50 text-gray-300 transition-all duration-300`;
+                    slot.id = `slot-${index}`;
+                    slot.innerText = '?';
+                    targetGrid.appendChild(slot);
+                });
+            } else {
+                // تجميع كل 3 مواضع لحرف واحد في صندوق رمادي صغير لتمييزها بصرياً
+                for (let i = 0; i < currentSequence.length; i += 3) {
+                    const group = document.createElement('div');
+                    group.className = 'flex gap-1 p-1 bg-gray-100 rounded-lg border border-gray-200 shadow-inner';
+                    
+                    for (let j = 0; j < 3; j++) {
+                        const index = i + j;
+                        if (index < currentSequence.length) {
+                            const slot = document.createElement('div');
+                            slot.className = `arabic-letter ${slotSizeClass} flex items-center justify-center font-bold rounded border-2 border-dashed border-gray-300 bg-white text-gray-300 transition-all duration-300`;
+                            slot.id = `slot-${index}`;
+                            slot.innerText = '?';
+                            group.appendChild(slot);
+                        }
+                    }
+                    targetGrid.appendChild(group);
+                }
+            }
+
+            // 2. توليد الحروف العشوائية السفلية مقسمة لمجموعات لتسهيل البحث
+            let itemsToRender = [];
+            
+            if (isAlphabetMode) {
+                let g1 = shuffleArray([...group1Letters]);
+                let g2 = shuffleArray([...group2Letters]);
+                let g3 = shuffleArray([...group3Letters]);
+                itemsToRender = [...g1, ...g2, ...g3];
+            } else {
+                let g1 = [], g2 = [], g3 = [];
+                group1Letters.forEach(l => g1.push(...letterFormsData[l]));
+                group2Letters.forEach(l => g2.push(...letterFormsData[l]));
+                group3Letters.forEach(l => g3.push(...letterFormsData[l]));
+                
+                itemsToRender = [
+                    ...shuffleArray(g1),
+                    ...shuffleArray(g2),
+                    ...shuffleArray(g3)
+                ];
+            }
+
+            itemsToRender.forEach((letter) => {
+                const btn = document.createElement('button');
+                const colorClass = getLetterColorClass(letter);
+                
+                btn.className = `arabic-letter btn-base ${colorClass} ${btnSizeClass} font-black rounded-xl sm:rounded-2xl flex items-center justify-center cursor-pointer shadow-sm`;
+                btn.innerText = letter;
+                
+                // أحداث اللمس والنقر
+                btn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    handleLetterClick(letter, btn);
+                }, {passive: false});
+                
+                btn.addEventListener('click', () => {
+                    handleLetterClick(letter, btn);
+                });
+
+                lettersGrid.appendChild(btn);
+            });
+
+            highlightNextExpected();
+        }
+
+        // إضاءة خفيفة للصندوق الذي عليه الدور مع التمرير الآلي الذكي
+        function highlightNextExpected() {
+            document.querySelectorAll('.border-blue-500').forEach(el => {
+                el.classList.remove('border-blue-500', 'bg-blue-50', 'animate-pulse');
+                // استعادة اللون الأساسي بناءً على اللعبة
+                const isAlphabetMode = (document.getElementById('game-mode').value === 'alphabet');
+                el.classList.add('border-gray-300', isAlphabetMode ? 'bg-gray-50' : 'bg-white');
+            });
+            
+            if(currentIndex < currentSequence.length) {
+                const currentSlot = document.getElementById(`slot-${currentIndex}`);
+                if (currentSlot) {
+                    currentSlot.classList.remove('border-gray-300', 'bg-gray-50', 'bg-white');
+                    currentSlot.classList.add('border-blue-500', 'bg-blue-50', 'animate-pulse');
+
+                    // التمرير الآلي للصندوق العلوي ليبقى الحرف المطلوب في مرمى البصر
+                    const container = document.getElementById('target-grid');
+                    if (container) {
+                        const scrollPos = currentSlot.offsetTop - container.offsetTop - (container.clientHeight / 2) + (currentSlot.clientHeight / 2);
+                        container.scrollTo({ top: scrollPos, behavior: 'smooth' });
+                    }
+                }
+            }
+        }
+
+        function handleLetterClick(letter, btnElement) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const expectedLetter = currentSequence[currentIndex];
+
+            // تمييز الإجابة الصحيحة
+            if (letter === expectedLetter) {
+                playSound('correct');
+                
+                const isAlphabetMode = (document.getElementById('game-mode').value === 'alphabet');
+                const slotSizeClass = isAlphabetMode ? 'w-8 h-8 sm:w-10 sm:h-10 text-lg' : 'w-7 h-7 sm:w-8 sm:h-8 text-sm sm:text-base';
+
+                // تحديث الصندوق العلوي
+                const targetSlot = document.getElementById(`slot-${currentIndex}`);
+                targetSlot.innerText = letter;
+                targetSlot.className = `arabic-letter pop-in ${slotSizeClass} flex items-center justify-center font-bold rounded bg-green-500 text-white shadow-sm border-2 border-green-600`;
+
+                // إخفاء الزر السفلي المضروب
+                btnElement.style.transform = 'scale(0)';
+                btnElement.style.opacity = '0';
+                setTimeout(() => btnElement.remove(), 200);
+
+                currentIndex++;
+                document.getElementById('progress-text').innerText = `${currentIndex}/${currentSequence.length}`;
+                
+                highlightNextExpected();
+
+                if (currentIndex === currentSequence.length) {
+                    setTimeout(() => {
+                        playSound('win');
+                        document.getElementById('final-mistakes').innerText = mistakes;
+                        document.getElementById('celebration').classList.remove('hidden');
+                    }, 400);
+                }
+            } else {
+                // إجابة خاطئة
+                playSound('wrong');
+                mistakes++;
+                document.getElementById('mistake-counter').innerText = mistakes;
+                
+                // حركة الاهتزاز
+                btnElement.classList.add('shake-animation');
+                setTimeout(() => btnElement.classList.remove('shake-animation'), 400);
+            }
+        }
+    </script>
+</body>
+</html>
